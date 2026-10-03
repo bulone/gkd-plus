@@ -23,11 +23,27 @@ object FolderUtils {
             app.filesDir
         } else {
             // fix #1333
-            app.getExternalFilesDir(null) ?: app.filesDir.also {
-                markFile.createNewFile()
+            // 软重启后外部存储可能未就绪 (FUSE ENOTCONN), 此时回退到内部存储,
+            // 避免后续日志/数据库路径全部指向不可用的外部存储导致进程崩溃。
+            val external = app.getExternalFilesDir(null)
+            if (external != null && external.isUsableDir()) {
+                external
+            } else {
+                app.filesDir.also {
+                    runCatching { markFile.createNewFile() }
+                }
             }
         }
     }
+
+    /** 外部存储可能因软重启/未挂载而不可写, 这里做一次真实可用的探测。 */
+    private fun File.isUsableDir(): Boolean = runCatching {
+        val probe = resolve(".gkd_probe")
+        if (!exists() && !mkdirs()) return@runCatching false
+        probe.writeText("")
+        probe.delete()
+        true
+    }.getOrDefault(false)
 
     val dbFolder: File
         get() = filesDir.resolve("db").autoMk()

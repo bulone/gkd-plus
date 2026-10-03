@@ -38,7 +38,8 @@ object LogUtils {
         }
         val t = System.currentTimeMillis()
         logFileExecutor.run {
-            logToFile(tag, name, actualLoc, texts, t)
+            // 写文件日志失败不能影响主流程 (如软重启后外部存储 ENOTCONN)
+            runCatching { logToFile(tag, name, actualLoc, texts, t) }
         }
     }
 }

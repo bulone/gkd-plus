@@ -106,11 +106,17 @@ abstract class A11yService : AccessibilityService(), A11yCommonImpl {
         lifecycleHooks.useLogLifecycle(this)
         lifecycleHooks.onCreated {
             isRunning.value = true
-            if (currentAppUseA11y) {
-                updateEnableAutomator(true)
-            } else {
-                toast(UiStrings.a11y_automation_mode_notice, forced = true)
-                scope.launch {
+            // 延迟判断 currentAppUseA11y: 服务刚创建时 storeFlow/topAppIdFlow 可能尚未就绪,
+            // 立即判断会误判为 false 并调用 disableSelf(), 导致无关闭无障碍服务
+            // (软重启/进程重启后尤为明显: 服务被重建时前台信息与配置尚未加载完成)。
+            scope.launch {
+                delay(A11Y_STATE_SETTLE_DELAY)
+                // 若期间已成功连接或服务已销毁, 则不再干预
+                if (destroyed || connected) return@launch
+                if (currentAppUseA11y) {
+                    updateEnableAutomator(true)
+                } else {
+                    toast(UiStrings.a11y_automation_mode_notice, forced = true)
                     delay(1)
                     shutdown(true)
                 }
@@ -205,3 +211,6 @@ abstract class A11yService : AccessibilityService(), A11yCommonImpl {
             private set
     }
 }
+
+/** 等待 store 配置与前台应用信息就绪的时长, 避免无障碍服务被误关闭。 */
+private const val A11Y_STATE_SETTLE_DELAY = 2_000L

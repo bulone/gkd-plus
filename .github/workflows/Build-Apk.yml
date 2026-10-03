@@ -5,7 +5,7 @@ on:
 
   push:
     branches:
-      - '**'
+      - test
     paths-ignore:
       - 'LICENSE'
       - '*.md'
